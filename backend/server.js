@@ -5,6 +5,8 @@ const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
 
+const { jsonrepair } = require('jsonrepair');
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -124,7 +126,20 @@ app.post('/api/generate', upload.array('files', 5), async (req, res) => {
     const end   = cleaned.lastIndexOf('}');
     if (start > -1 && end > -1) cleaned = cleaned.substring(start, end + 1);
 
-    const parsed = JSON.parse(cleaned);
+    let parsed;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch (jsonErr) {
+      // Try to repair JSON if parsing fails
+      try {
+        const repaired = jsonrepair(cleaned);
+        parsed = JSON.parse(repaired);
+        console.warn('JSON repaired:', repaired.substring(0, 500));
+      } catch (repairErr) {
+        console.error('Raw Gemini output:', cleaned.substring(0, 1000));
+        throw new Error('Invalid JSON from Gemini and repair failed.');
+      }
+    }
 
     return res.json({
       success: true,
