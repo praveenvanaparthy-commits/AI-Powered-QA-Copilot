@@ -2,7 +2,7 @@ services:
   - type: web
     name: qa-copilot
     env: node
-    buildCommand: cd backend && npm install
+    buildCommand: bash render-build.sh
     startCommand: node backend/server.js
     envVars:
       - key: GEMINI_API_KEY
