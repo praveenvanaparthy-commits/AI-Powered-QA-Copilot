@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>QA Copilot — AI-Powered QA Assistant</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0e1a;--bg2:#111827;--bg3:#1a2235;--bg4:#1e2a3d;
+  --border:#2a3a55;--border2:#3a4f70;
+  --text:#e8edf8;--text2:#8fa0bf;--text3:#5a6a8a;
+  --accent:#4f8ef7;--accent2:#6fa3fa;--accentbg:rgba(79,142,247,0.12);
+  --green:#22d3a0;--greenbg:rgba(34,211,160,0.1);
+  --amber:#f59e0b;--amberbg:rgba(245,158,11,0.1);
+  --red:#f87171;--redbg:rgba(248,113,113,0.1);
+  --purple:#a78bfa;--purplebg:rgba(167,139,250,0.1);
+  --radius:10px;--radius2:14px;
+}
+body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+
+/* ── LAYOUT ── */
+.app{display:grid;grid-template-rows:auto auto 1fr;min-height:100vh}
+.navbar{display:flex;align-items:center;justify-content:space-between;padding:0 28px;height:64px;background:var(--bg2);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
+.nav-brand{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:700}
+.logo{width:32px;height:32px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px}
+.nav-badge{font-size:11px;padding:3px 8px;border-radius:20px;background:var(--greenbg);color:var(--green);font-weight:500;border:1px solid rgba(34,211,160,0.2)}
+.nav-right{display:flex;align-items:center;gap:8px}
+
+/* API status indicator */
+.api-status{display:flex;align-items:center;gap:6px;font-size:12px;padding:6px 12px;border-radius:8px;border:1px solid var(--border);color:var(--text3);cursor:default}
+.api-status .dot{width:7px;height:7px;border-radius:50%;background:var(--text3)}
+.api-status.ok .dot{background:var(--green);box-shadow:0 0 6px var(--green)}
+.api-status.ok{color:var(--green);border-color:rgba(34,211,160,0.25)}
+.api-status.err .dot{background:var(--red)}
+.api-status.err{color:var(--red);border-color:rgba(248,113,113,0.25)}
+
+/* endpoint bar */
+.endpoint-bar{padding:10px 28px;background:var(--bg3);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;font-size:12px}
+.endpoint-label{color:var(--text3);white-space:nowrap}
+.endpoint-url{font-family:'JetBrains Mono',monospace;color:var(--accent2);flex:1;word-break:break-all}
+.copy-btn{background:var(--bg2);border:1px solid var(--border);color:var(--text2);padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;white-space:nowrap;font-family:'Space Grotesk',sans-serif;transition:all 0.2s}
+.copy-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ── MAIN ── */
+.main{display:grid;grid-template-columns:340px 1fr;overflow:hidden}
+
+/* ── LEFT ── */
+.left-panel{background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;padding:20px;height:calc(100vh - 100px)}
+.panel-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:12px}
+
+.upload-zone{border:2px dashed var(--border2);border-radius:var(--radius2);padding:24px 16px;text-align:center;cursor:pointer;transition:all 0.25s;margin-bottom:14px;position:relative;background:var(--bg3)}
+.upload-zone:hover{border-color:var(--accent);background:var(--accentbg)}
+.upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.upload-icon{font-size:26px;color:var(--accent);margin-bottom:8px}
+.upload-title{font-size:13px;font-weight:600;margin-bottom:3px}
+.upload-sub{font-size:11px;color:var(--text3)}
+.file-chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px}
+.file-chip{display:flex;align-items:center;gap:5px;padding:4px 9px;border-radius:6px;background:var(--bg3);border:1px solid var(--border);font-size:11px;color:var(--text2)}
+.file-chip .rm{cursor:pointer;color:var(--text3);font-size:14px;line-height:1}
+.file-chip .rm:hover{color:var(--red)}
+
+.divider{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.divider span{font-size:11px;color:var(--text3);white-space:nowrap}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border)}
+.textarea{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:10px;color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:13px;resize:vertical;min-height:110px;outline:none;transition:border 0.2s;line-height:1.6}
+.textarea:focus{border-color:var(--accent)}
+.textarea::placeholder{color:var(--text3)}
+
+.options-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px}
+.opt-chip{display:flex;align-items:center;gap:7px;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);cursor:pointer;font-size:12px;font-weight:500;color:var(--text2);transition:all 0.2s;user-select:none}
+.opt-chip input{display:none}
+.opt-chip.checked{border-color:var(--accent);background:var(--accentbg);color:var(--accent2)}
+.dot-check{width:13px;height:13px;border-radius:50%;border:1.5px solid currentColor;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.opt-chip.checked .dot-check::after{content:'';display:block;width:6px;height:6px;border-radius:50%;background:currentColor}
+
+.select{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:13px;outline:none;cursor:pointer;margin-bottom:12px;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24'%3E%3Cpath fill='%235a6a8a' d='m7 10 5 5 5-5z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+.select:focus{border-color:var(--accent)}
+
+.gen-btn{width:100%;padding:12px;border-radius:var(--radius2);border:none;background:linear-gradient(135deg,var(--accent),#6f6af8);color:#fff;font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all 0.2s;margin-top:4px}
+.gen-btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 8px 24px rgba(79,142,247,0.35)}
+.gen-btn:disabled{opacity:0.5;cursor:not-allowed}
+.spinner{width:16px;height:16px;border:2.5px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── RIGHT ── */
+.right-panel{display:flex;flex-direction:column;overflow:hidden}
+.tabs-bar{display:flex;border-bottom:1px solid var(--border);padding:0 20px;overflow-x:auto;background:var(--bg2);flex-shrink:0}
+.tabs-bar::-webkit-scrollbar{height:3px}
+.tabs-bar::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+.tab{display:flex;align-items:center;gap:6px;padding:13px 15px;font-size:13px;font-weight:500;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:all 0.2s;background:none;border-left:none;border-right:none;border-top:none;font-family:'Space Grotesk',sans-serif}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--accent2);border-bottom-color:var(--accent)}
+.tab .badge{font-size:10px;padding:2px 6px;border-radius:10px;background:var(--bg3);color:var(--text3);font-weight:600}
+.tab.active .badge{background:var(--accentbg);color:var(--accent2)}
+.content-area{flex:1;overflow-y:auto;padding:24px}
+.content-area::-webkit-scrollbar{width:4px}
+.content-area::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:400px;text-align:center;gap:12px}
+.empty-icon{font-size:48px;color:var(--text3)}
+.empty h3{font-size:16px;color:var(--text2)}
+.empty p{font-size:13px;color:var(--text3);max-width:300px;line-height:1.6}
+
+.toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:8px}
+.toolbar-left{display:flex;align-items:center;gap:10px}
+.toolbar-right{display:flex;gap:6px;flex-wrap:wrap}
+.section-title{font-size:15px;font-weight:600}
+.icon-btn{background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:6px 12px;border-radius:8px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all 0.2s;font-family:'Space Grotesk',sans-serif;white-space:nowrap}
+.icon-btn:hover{border-color:var(--border2);color:var(--text)}
+.icon-btn.primary{background:var(--accentbg);border-color:rgba(79,142,247,0.3);color:var(--accent2)}
+
+.tc-table{width:100%;border-collapse:collapse;font-size:13px}
+.tc-table th{text-align:left;padding:9px 13px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.7px;color:var(--text3);border-bottom:1px solid var(--border);background:var(--bg3)}
+.tc-table td{padding:11px 13px;border-bottom:1px solid rgba(42,58,85,0.4);vertical-align:top;line-height:1.5}
+.tc-table tr:hover td{background:var(--bg3)}
+.tc-id{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3);white-space:nowrap}
+.pbadge{display:inline-block;padding:2px 7px;border-radius:20px;font-size:11px;font-weight:600}
+.p-high{background:var(--redbg);color:var(--red);border:1px solid rgba(248,113,113,0.2)}
+.p-med{background:var(--amberbg);color:var(--amber);border:1px solid rgba(245,158,11,0.2)}
+.p-low{background:var(--greenbg);color:var(--green);border:1px solid rgba(34,211,160,0.2)}
+.tbadge{display:inline-block;padding:2px 7px;border-radius:20px;font-size:11px;font-weight:500;background:var(--purplebg);color:var(--purple);border:1px solid rgba(167,139,250,0.2)}
+
+.cards-grid{display:grid;gap:12px}
+.qa-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius2);padding:16px;transition:border-color 0.2s}
+.qa-card:hover{border-color:var(--border2)}
+.qa-card-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;gap:10px}
+.qa-card-title{font-size:13px;font-weight:600;line-height:1.4}
+.qa-card-body{font-size:13px;color:var(--text2);line-height:1.7}
+
+.code-block{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius2);overflow:hidden;margin-bottom:14px}
+.code-header{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid var(--border);background:var(--bg3)}
+.code-lang{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase}
+.code-dots{display:flex;gap:5px}
+.code-dot{width:9px;height:9px;border-radius:50%}
+.code-body{padding:16px;overflow-x:auto}
+.code-body pre{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text2);line-height:1.7;white-space:pre}
+
+.export-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.export-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius2);padding:18px;cursor:pointer;transition:all 0.2s;text-align:center}
+.export-card:hover{border-color:var(--accent);background:var(--accentbg);transform:translateY(-2px)}
+.export-card i{font-size:26px;margin-bottom:8px;display:block}
+.export-card .ec-title{font-size:13px;font-weight:600;margin-bottom:3px}
+.export-card .ec-sub{font-size:11px;color:var(--text3);line-height:1.5}
+
+.jira-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius2);padding:18px;margin-bottom:12px}
+.jira-steps{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+.jira-step{display:flex;gap:10px;align-items:flex-start}
+.jira-num{width:22px;height:22px;border-radius:50%;background:var(--accentbg);border:1px solid rgba(79,142,247,0.3);color:var(--accent2);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.jira-step p{font-size:12px;color:var(--text2);line-height:1.6}
+.jira-step code{font-family:'JetBrains Mono',monospace;font-size:11px;background:var(--bg3);padding:1px 5px;border-radius:4px;color:var(--accent2)}
+
+.tag{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500}
+.tag-blue{background:var(--accentbg);color:var(--accent2);border:1px solid rgba(79,142,247,0.2)}
+.tag-green{background:var(--greenbg);color:var(--green);border:1px solid rgba(34,211,160,0.2)}
+
+.loading-bar{height:3px;background:linear-gradient(90deg,var(--accent),var(--purple),var(--green));background-size:200%;animation:shimmer 1.5s linear infinite;border-radius:2px;margin-bottom:14px}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.skel{height:70px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius2);animation:skpulse 1.4s ease infinite alternate}
+@keyframes skpulse{from{opacity:0.4}to{opacity:1}}
+.fade-in{animation:fadeUp 0.35s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+
+/* error toast */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--redbg);border:1px solid rgba(248,113,113,0.3);color:var(--red);padding:12px 18px;border-radius:var(--radius);font-size:13px;z-index:9999;max-width:360px;line-height:1.5;box-shadow:0 4px 20px rgba(0,0,0,0.4);display:none}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- NAVBAR -->
+<nav class="navbar">
+  <div class="nav-brand">
+    <div class="logo"><i class="ti ti-robot"></i></div>
+    QA Copilot
+    <span class="nav-badge"><i class="ti ti-circle-filled" style="font-size:7px;margin-right:2px"></i>AI Powered</span>
+  </div>
+  <div class="nav-right">
+    <div class="api-status" id="apiStatus">
+      <div class="dot"></div><span id="apiStatusText">Checking...</span>
+    </div>
+    <button class="icon-btn" onclick="resetAll()"><i class="ti ti-refresh"></i> Reset</button>
+  </div>
+</nav>
+
+<!-- ENDPOINT BAR -->
+<div class="endpoint-bar">
+  <span class="endpoint-label"><i class="ti ti-plug" style="font-size:13px;vertical-align:-2px"></i> Backend:</span>
+  <span class="endpoint-url" id="endpointDisplay">—</span>
+  <button class="copy-btn" onclick="copyEndpoint()"><i class="ti ti-copy" style="font-size:12px"></i> Copy</button>
+</div>
+
+<div class="main">
+<!-- LEFT PANEL -->
+<aside class="left-panel">
+  <div class="panel-title">Input Source</div>
+
+  <div class="upload-zone">
+    <input type="file" id="fileInput" multiple accept=".pdf,.docx,.txt,.md,.json,.csv" onchange="handleFiles(event)"/>
+    <div class="upload-icon"><i class="ti ti-cloud-upload"></i></div>
+    <div class="upload-title">Drop files here</div>
+    <div class="upload-sub">PDF, DOCX, TXT, MD, JSON, CSV</div>
+  </div>
+  <div id="fileChips" class="file-chips"></div>
+
+  <div class="divider"><span>or paste text</span></div>
+  <textarea id="inputText" class="textarea" placeholder="Paste BRD, PRD, User Stories, Acceptance Criteria, or API specs..."></textarea>
+
+  <div class="panel-title" style="margin-top:16px">Output Options</div>
+  <div class="options-grid">
+    <label class="opt-chip checked" onclick="toggleOpt(this)"><input type="checkbox" checked/><div class="dot-check"></div><span>Test Cases</span></label>
+    <label class="opt-chip checked" onclick="toggleOpt(this)"><input type="checkbox" checked/><div class="dot-check"></div><span>Test Data</span></label>
+    <label class="opt-chip checked" onclick="toggleOpt(this)"><input type="checkbox" checked/><div class="dot-check"></div><span>Edge Cases</span></label>
+    <label class="opt-chip checked" onclick="toggleOpt(this)"><input type="checkbox" checked/><div class="dot-check"></div><span>API Tests</span></label>
+    <label class="opt-chip checked" onclick="toggleOpt(this)"><input type="checkbox" checked/><div class="dot-check"></div><span>Automation</span></label>
+    <label class="opt-chip" onclick="toggleOpt(this)"><input type="checkbox"/><div class="dot-check"></div><span>Negative</span></label>
+  </div>
+
+  <div class="panel-title">Framework</div>
+  <select id="framework" class="select">
+    <option value="selenium">Selenium (Java)</option>
+    <option value="playwright">Playwright (JS)</option>
+    <option value="cypress">Cypress</option>
+    <option value="pytest">Pytest</option>
+    <option value="postman">Postman / Newman</option>
+  </select>
+
+  <div class="panel-title">Test Format</div>
+  <select id="testFormat" class="select">
+    <option>Gherkin (BDD)</option>
+    <option>Traditional (Steps)</option>
+    <option>Table Format</option>
+  </select>
+
+  <button class="gen-btn" id="genBtn" onclick="generate()">
+    <i class="ti ti-wand"></i> Generate QA Assets
+  </button>
+</aside>
+
+<!-- RIGHT PANEL -->
+<section class="right-panel">
+  <div class="tabs-bar">
+    <button class="tab active" data-tab="testcases" onclick="switchTab('testcases',this)"><i class="ti ti-list-check"></i> Test Cases <span class="badge" id="tc-count">0</span></button>
+    <button class="tab" data-tab="testdata" onclick="switchTab('testdata',this)"><i class="ti ti-database"></i> Test Data <span class="badge" id="td-count">0</span></button>
+    <button class="tab" data-tab="edge" onclick="switchTab('edge',this)"><i class="ti ti-alert-triangle"></i> Edge Cases <span class="badge" id="ed-count">0</span></button>
+    <button class="tab" data-tab="api" onclick="switchTab('api',this)"><i class="ti ti-api"></i> API Tests <span class="badge" id="api-count">0</span></button>
+    <button class="tab" data-tab="automation" onclick="switchTab('automation',this)"><i class="ti ti-terminal-2"></i> Automation</button>
+    <button class="tab" data-tab="export" onclick="switchTab('export',this)"><i class="ti ti-download"></i> Export & Push</button>
+  </div>
+  <div class="content-area" id="contentArea">
+    <div class="empty">
+      <div class="empty-icon"><i class="ti ti-robot-face"></i></div>
+      <h3>QA Copilot Ready</h3>
+      <p>Upload a document or paste your requirements, then click Generate QA Assets.</p>
+    </div>
+  </div>
+</section>
+</div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────────────────────────
+// Backend URL: auto-detects. When deployed on Render (same service), uses same origin.
+// When running locally, backend is on :3001
+const BACKEND_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ? 'http://localhost:3001'
+  : window.location.origin;
+
+// Show the endpoint
+document.getElementById('endpointDisplay').textContent = BACKEND_URL + '/api';
+
+// ── STATE ────────────────────────────────────────────────────────────────────
+let currentTab = 'testcases';
+let uploadedFiles = [];
+let generatedData = {testcases:[],testdata:[],edge:[],api:[],automation:'',framework:'selenium'};
+
+// ── HEALTH CHECK ─────────────────────────────────────────────────────────────
+async function checkHealth() {
+  try {
+    const r = await fetch(`${BACKEND_URL}/api/health`, {signal: AbortSignal.timeout(5000)});
+    const d = await r.json();
+    const el = document.getElementById('apiStatus');
+    const txt = document.getElementById('apiStatusText');
+    if (d.status === 'ok') {
+      el.className = 'api-status ok';
+      txt.textContent = d.apiKeyConfigured ? 'Backend connected' : 'Backend up — API key missing';
+      if (!d.apiKeyConfigured) { el.className = 'api-status err'; }
+    } else { throw new Error(); }
+  } catch {
+    const el = document.getElementById('apiStatus');
+    el.className = 'api-status err';
+    document.getElementById('apiStatusText').textContent = 'Backend offline';
+  }
+}
+checkHealth();
+
+function copyEndpoint() {
+  navigator.clipboard.writeText(BACKEND_URL + '/api');
+  showToast('Endpoint copied!', 'ok');
+}
+
+// ── UI HELPERS ───────────────────────────────────────────────────────────────
+function toggleOpt(el) {
+  el.classList.toggle('checked');
+  el.querySelector('input').checked = !el.querySelector('input').checked;
+}
+function switchTab(tab, el) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderCurrentTab();
+}
+function showToast(msg, type='err') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  t.style.background = type === 'ok' ? 'var(--greenbg)' : 'var(--redbg)';
+  t.style.color = type === 'ok' ? 'var(--green)' : 'var(--red)';
+  t.style.borderColor = type === 'ok' ? 'rgba(34,211,160,0.3)' : 'rgba(248,113,113,0.3)';
+  setTimeout(() => t.style.display = 'none', 3500);
+}
+function handleFiles(e) {
+  Array.from(e.target.files).forEach(f => {
+    if (!uploadedFiles.find(u => u.name === f.name)) uploadedFiles.push(f);
+  });
+  renderFileChips();
+}
+function renderFileChips() {
+  document.getElementById('fileChips').innerHTML = uploadedFiles.map((f,i) => `
+    <div class="file-chip">
+      <i class="ti ti-file" style="font-size:12px;color:var(--accent2)"></i>
+      ${f.name.length > 18 ? f.name.substring(0,15)+'...' : f.name}
+      <span class="rm" onclick="removeFile(${i})">×</span>
+    </div>`).join('');
+}
+function removeFile(i) { uploadedFiles.splice(i,1); renderFileChips(); }
+
+// ── GENERATE ─────────────────────────────────────────────────────────────────
+async function generate() {
+  const text = document.getElementById('inputText').value.trim();
+  if (!text && uploadedFiles.length === 0) {
+    showToast('Please upload a file or paste your requirements text.');
+    return;
+  }
+
+  const framework = document.getElementById('framework').value;
+  const testFormat = document.getElementById('testFormat').value;
+  const opts = Array.from(document.querySelectorAll('.opt-chip.checked span')).map(s => s.textContent);
+
+  // Build FormData (supports files)
+  const fd = new FormData();
+  fd.append('text', text);
+  fd.append('options', JSON.stringify(opts));
+  fd.append('framework', framework);
+  fd.append('testFormat', testFormat);
+  uploadedFiles.forEach(f => fd.append('files', f));
+
+  // Loading state
+  const btn = document.getElementById('genBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Generating...';
+  generatedData.framework = framework;
+  ['tc-count','td-count','ed-count','api-count'].forEach(id => document.getElementById(id).textContent = '0');
+
+  document.getElementById('contentArea').innerHTML = `
+    <div class="loading-bar"></div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      ${[1,2,3,4].map(() => '<div class="skel"></div>').join('')}
+    </div>`;
+
+  try {
+    const resp = await fetch(`${BACKEND_URL}/api/generate`, {
+      method: 'POST',
+      body: fd
+    });
+    const result = await resp.json();
+    if (!resp.ok || result.error) throw new Error(result.error || 'Server error');
+
+    generatedData = {...generatedData, ...result.data};
+    document.getElementById('tc-count').textContent = generatedData.testcases?.length || 0;
+    document.getElementById('td-count').textContent = generatedData.testdata?.length || 0;
+    document.getElementById('ed-count').textContent = generatedData.edge?.length || 0;
+    document.getElementById('api-count').textContent = generatedData.api?.length || 0;
+    switchTab('testcases', document.querySelector('.tab[data-tab="testcases"]'));
+    showToast('QA assets generated successfully!', 'ok');
+  } catch (err) {
+    document.getElementById('contentArea').innerHTML = `
+      <div class="empty">
+        <div class="empty-icon"><i class="ti ti-alert-circle" style="color:var(--red)"></i></div>
+        <h3>Generation failed</h3>
+        <p style="color:var(--red)">${err.message}</p>
+        <p style="font-size:12px;margin-top:8px">Check that your backend is running and ANTHROPIC_API_KEY is set.</p>
+      </div>`;
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="ti ti-wand"></i> Generate QA Assets';
+}
+
+// ── RENDER TABS ───────────────────────────────────────────────────────────────
+function renderCurrentTab() {
+  const ca = document.getElementById('contentArea');
+  if (!generatedData.testcases?.length && currentTab !== 'export') {
+    ca.innerHTML = `<div class="empty"><div class="empty-icon"><i class="ti ti-robot-face"></i></div><h3>No data yet</h3><p>Generate QA assets first.</p></div>`;
+    return;
+  }
+  if (currentTab === 'testcases') renderTestCases(ca);
+  else if (currentTab === 'testdata') renderTestData(ca);
+  else if (currentTab === 'edge') renderEdge(ca);
+  else if (currentTab === 'api') renderAPI(ca);
+  else if (currentTab === 'automation') renderAutomation(ca);
+  else if (currentTab === 'export') renderExport(ca);
+}
+
+function renderTestCases(ca) {
+  const tcs = generatedData.testcases || [];
+  ca.innerHTML = `
+  <div class="toolbar">
+    <div class="toolbar-left"><div class="section-title">Test Cases</div><span class="tag tag-blue">${tcs.length} generated</span></div>
+    <div class="toolbar-right">
+      <button class="icon-btn" onclick="filterTCs('High')"><i class="ti ti-flame"></i> High</button>
+      <button class="icon-btn" onclick="filterTCs('Medium')"><i class="ti ti-minus"></i> Medium</button>
+      <button class="icon-btn" onclick="resetFilter()"><i class="ti ti-layout-list"></i> All</button>
+      <button class="icon-btn primary" onclick="exportCSV()"><i class="ti ti-download"></i> CSV</button>
+    </div>
+  </div>
+  <div style="overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius2);background:var(--bg2)">
+  <table class="tc-table">
+    <thead><tr><th>ID</th><th>Title</th><th>Module</th><th>Priority</th><th>Type</th><th>Steps</th><th>Expected</th></tr></thead>
+    <tbody id="tcBody">
+      ${tcs.map(tc => `<tr class="fade-in">
+        <td class="tc-id">${tc.id||'TC?'}</td>
+        <td style="min-width:160px;font-weight:500;font-size:13px">${tc.title||''}</td>
+        <td style="color:var(--text3);font-size:12px;white-space:nowrap">${tc.module||'-'}</td>
+        <td><span class="pbadge ${tc.priority==='High'?'p-high':tc.priority==='Medium'?'p-med':'p-low'}">${tc.priority||'Med'}</span></td>
+        <td><span class="tbadge">${tc.type||'Functional'}</span></td>
+        <td style="font-size:12px;color:var(--text2);min-width:180px">${(tc.steps||[]).slice(0,3).map((s,i)=>`<div>${i+1}. ${s}</div>`).join('')}${(tc.steps||[]).length>3?`<div style="color:var(--text3)">+${tc.steps.length-3} more</div>`:''}</td>
+        <td style="font-size:12px;color:var(--green);min-width:140px">${tc.expected||''}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+function renderTestData(ca) {
+  const tds = generatedData.testdata || [];
+  ca.innerHTML = `
+  <div class="toolbar"><div class="toolbar-left"><div class="section-title">Test Data Suggestions</div><span class="tag tag-green">${tds.length} scenarios</span></div></div>
+  <div class="cards-grid">
+  ${tds.map(td => `<div class="qa-card fade-in">
+    <div class="qa-card-header"><div class="qa-card-title">${td.scenario||'Scenario'}</div></div>
+    <div class="qa-card-body">
+      ${td.valid?.length?`<div style="margin-bottom:10px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:0.8px;color:var(--green);font-weight:600;margin-bottom:6px">✓ Valid</div>${td.valid.map(v=>`<div style="background:var(--bg3);border-radius:6px;padding:7px 10px;margin-bottom:5px;font-size:11px;font-family:'JetBrains Mono',monospace">${JSON.stringify(v)}</div>`).join('')}</div>`:''}
+      ${td.invalid?.length?`<div style="margin-bottom:10px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:0.8px;color:var(--red);font-weight:600;margin-bottom:6px">✗ Invalid</div>${td.invalid.map(v=>`<div style="background:var(--bg3);border-radius:6px;padding:7px 10px;margin-bottom:5px;font-size:11px;font-family:'JetBrains Mono',monospace">${JSON.stringify(v)}</div>`).join('')}</div>`:''}
+      ${td.boundary?.length?`<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:0.8px;color:var(--amber);font-weight:600;margin-bottom:6px">⚡ Boundary</div>${td.boundary.map(v=>`<div style="background:var(--bg3);border-radius:6px;padding:7px 10px;margin-bottom:5px;font-size:11px;font-family:'JetBrains Mono',monospace">${JSON.stringify(v)}</div>`).join('')}</div>`:''}
+    </div>
+  </div>`).join('')}
+  </div>`;
+}
+
+function renderEdge(ca) {
+  const edges = generatedData.edge || [];
+  ca.innerHTML = `
+  <div class="toolbar"><div class="toolbar-left"><div class="section-title">Edge Cases & Negatives</div><span class="tag tag-blue">${edges.length} cases</span></div></div>
+  <div class="cards-grid">
+  ${edges.map(e => `<div class="qa-card fade-in">
+    <div class="qa-card-header">
+      <div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:3px">${e.category||'Edge'}</div>
+      <div class="qa-card-title">${e.title||''}</div></div>
+      <span class="pbadge ${e.risk==='High'?'p-high':e.risk==='Medium'?'p-med':'p-low'}">${e.risk||'Med'}</span>
+    </div>
+    <div class="qa-card-body">
+      <p style="margin-bottom:8px">${e.description||''}</p>
+      ${e.mitigation?`<div style="padding:7px 11px;background:var(--greenbg);border-left:2px solid var(--green);border-radius:4px;font-size:12px;color:var(--green)"><strong>Mitigation:</strong> ${e.mitigation}</div>`:''}
+    </div>
+  </div>`).join('')}
+  </div>`;
+}
+
+function renderAPI(ca) {
+  const apis = generatedData.api || [];
+  ca.innerHTML = `
+  <div class="toolbar">
+    <div class="toolbar-left"><div class="section-title">API Test Cases</div><span class="tag tag-blue">${apis.length} endpoints</span></div>
+    <div class="toolbar-right"><button class="icon-btn primary" onclick="exportPostman()"><i class="ti ti-download"></i> Postman</button></div>
+  </div>
+  <div class="cards-grid">
+  ${apis.map(api => {
+    const col = api.method==='GET'?'var(--green)':api.method==='POST'?'var(--accent2)':api.method==='DELETE'?'var(--red)':'var(--amber)';
+    return `<div class="qa-card fade-in">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:9px">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;padding:3px 8px;border-radius:5px;border:1px solid;color:${col};border-color:${col};background:${col}22">${api.method}</span>
+      <code style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text2)">${api.endpoint}</code>
+    </div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:9px">${api.description||''}</div>
+    ${api.assertions?.length?`<div style="display:flex;flex-wrap:wrap;gap:4px">${api.assertions.map(a=>`<span style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:2px 7px;font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--green)">${a}</span>`).join('')}</div>`:''}
+    ${api.body&&Object.keys(api.body).length?`<div style="margin-top:9px;background:var(--bg3);border-radius:6px;padding:8px 10px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2)">${JSON.stringify(api.body,null,2)}</div>`:''}
+  </div>`;}).join('')}
+  </div>`;
+}
+
+function renderAutomation(ca) {
+  const fw = generatedData.framework || 'selenium';
+  const script = generatedData.automation || '// Generate QA assets first to see the automation script.';
+  const langMap = {selenium:'java',playwright:'javascript',cypress:'javascript',pytest:'python',postman:'javascript'};
+  const lang = langMap[fw] || 'java';
+  const ext = lang==='java'?'java':lang==='python'?'py':'js';
+  ca.innerHTML = `
+  <div class="toolbar">
+    <div class="toolbar-left"><div class="section-title">Automation Script</div><span class="tag tag-blue">${fw}</span></div>
+    <div class="toolbar-right">
+      <button class="icon-btn" onclick="copyCode()"><i class="ti ti-copy"></i> Copy</button>
+      <button class="icon-btn primary" onclick="downloadScript('${ext}')"><i class="ti ti-download"></i> .${ext}</button>
+    </div>
+  </div>
+  <div class="code-block">
+    <div class="code-header">
+      <div class="code-dots"><div class="code-dot" style="background:#ff5f57"></div><div class="code-dot" style="background:#ffbd2e"></div><div class="code-dot" style="background:#28c840"></div></div>
+      <div class="code-lang">${lang}</div>
+      <div style="font-size:11px;color:var(--text3)">AI Generated — Review before use</div>
+    </div>
+    <div class="code-body"><pre id="autoCode">${escHtml(script)}</pre></div>
+  </div>`;
+}
+
+function renderExport(ca) {
+  ca.innerHTML = `
+  <div class="toolbar"><div class="toolbar-left"><div class="section-title">Export & Integration</div></div></div>
+  <div class="panel-title" style="margin-bottom:10px">Download via Backend API</div>
+  <div class="export-grid" style="margin-bottom:22px">
+    <div class="export-card" onclick="exportCSV()"><i class="ti ti-table" style="color:var(--green)"></i><div class="ec-title">CSV / Excel</div><div class="ec-sub">Test cases in spreadsheet format</div></div>
+    <div class="export-card" onclick="exportJSON()"><i class="ti ti-braces" style="color:var(--accent2)"></i><div class="ec-title">JSON Export</div><div class="ec-sub">Full structured output for CI/CD</div></div>
+    <div class="export-card" onclick="exportMarkdown()"><i class="ti ti-markdown" style="color:var(--purple)"></i><div class="ec-title">Markdown Doc</div><div class="ec-sub">For Confluence, Notion, GitHub</div></div>
+    <div class="export-card" onclick="exportPostman()"><i class="ti ti-api" style="color:var(--amber)"></i><div class="ec-title">Postman Collection</div><div class="ec-sub">Ready-to-import API test collection</div></div>
+  </div>
+  <div class="panel-title" style="margin-bottom:10px">Push to Test Management</div>
+  <div class="cards-grid" style="gap:10px">
+    <div class="jira-card">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <div style="width:26px;height:26px;background:#0052CC;border-radius:6px;display:flex;align-items:center;justify-content:center"><i class="ti ti-brand-jira" style="font-size:14px;color:#fff"></i></div>
+        <strong style="font-size:13px">Jira + Zephyr / Xray</strong><span class="tag tag-green" style="font-size:10px">Recommended</span>
+      </div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Use the JSON export + Xray or Zephyr Scale REST API to push test cases directly into Jira.</div>
+      <div class="jira-steps">
+        <div class="jira-step"><div class="jira-num">1</div><p>Get Jira API token at <code>id.atlassian.com → Security → API tokens</code></p></div>
+        <div class="jira-step"><div class="jira-num">2</div><p>Install Xray or Zephyr Scale from Jira Marketplace (free tier available)</p></div>
+        <div class="jira-step"><div class="jira-num">3</div><p>Call <code>POST /rest/atm/1.0/testcase</code> with the exported JSON fields</p></div>
+      </div>
+    </div>
+    <div class="jira-card">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <div style="width:26px;height:26px;background:#333;border-radius:6px;display:flex;align-items:center;justify-content:center"><i class="ti ti-brand-github" style="font-size:14px;color:#fff"></i></div>
+        <strong style="font-size:13px">GitHub Actions CI</strong>
+      </div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Download the automation script, commit to your repo, run in GitHub Actions.</div>
+      <div class="jira-steps">
+        <div class="jira-step"><div class="jira-num">1</div><p>Download script from Automation tab</p></div>
+        <div class="jira-step"><div class="jira-num">2</div><p>Add your <code>BASE_URL</code> and credentials</p></div>
+        <div class="jira-step"><div class="jira-num">3</div><p>GitHub Actions: <code>run: mvn test</code> or <code>npx playwright test</code></p></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── EXPORT FUNCTIONS ──────────────────────────────────────────────────────────
+async function exportCSV() {
+  if (!generatedData.testcases?.length) { showToast('Generate test cases first.'); return; }
+  const r = await fetch(`${BACKEND_URL}/api/export/csv`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({testcases: generatedData.testcases})
+  });
+  const blob = await r.blob();
+  downloadBlob(blob, 'test_cases.csv');
+}
+
+async function exportMarkdown() {
+  if (!generatedData.testcases?.length) { showToast('Generate assets first.'); return; }
+  const r = await fetch(`${BACKEND_URL}/api/export/markdown`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({testcases: generatedData.testcases, edge: generatedData.edge})
+  });
+  const blob = await r.blob();
+  downloadBlob(blob, 'test_plan.md');
+}
+
+async function exportPostman() {
+  if (!generatedData.api?.length) { showToast('No API tests generated yet.'); return; }
+  const r = await fetch(`${BACKEND_URL}/api/export/postman`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({api: generatedData.api})
+  });
+  const blob = await r.blob();
+  downloadBlob(blob, 'postman_collection.json');
+}
+
+function exportJSON() {
+  if (!generatedData.testcases?.length) { showToast('Generate assets first.'); return; }
+  const blob = new Blob([JSON.stringify(generatedData, null, 2)], {type:'application/json'});
+  downloadBlob(blob, 'qa_assets.json');
+}
+
+function downloadBlob(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name; a.click();
+}
+
+function downloadScript(ext) {
+  const el = document.getElementById('autoCode');
+  if (el) { const b = new Blob([el.textContent],{type:'text/plain'}); downloadBlob(b,`test_automation.${ext}`); }
+}
+
+function copyCode() {
+  const el = document.getElementById('autoCode');
+  if (el) { navigator.clipboard.writeText(el.textContent); showToast('Copied!', 'ok'); }
+}
+
+function filterTCs(p) {
+  document.querySelectorAll('#tcBody tr').forEach(r => {
+    const b = r.querySelector('.pbadge');
+    if (b) r.style.display = b.textContent === p ? '' : 'none';
+  });
+}
+function resetFilter() { document.querySelectorAll('#tcBody tr').forEach(r => r.style.display=''); }
+
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function resetAll() {
+  if (!confirm('Reset all data?')) return;
+  uploadedFiles = [];
+  generatedData = {testcases:[],testdata:[],edge:[],api:[],automation:'',framework:'selenium'};
+  document.getElementById('fileChips').innerHTML = '';
+  document.getElementById('inputText').value = '';
+  ['tc-count','td-count','ed-count','api-count'].forEach(id => document.getElementById(id).textContent='0');
+  document.getElementById('contentArea').innerHTML = `<div class="empty"><div class="empty-icon"><i class="ti ti-robot-face"></i></div><h3>QA Copilot Ready</h3><p>Upload a document or paste your requirements to begin.</p></div>`;
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', i===0));
+  currentTab = 'testcases';
+}
+</script>
+</body>
+</html>
