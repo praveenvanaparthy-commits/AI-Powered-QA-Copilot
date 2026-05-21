@@ -1,7 +1,7 @@
 {
   "name": "qa-copilot-backend",
-  "version": "1.0.0",
-  "description": "QA Copilot - AI-Powered QA Assistant Backend",
+  "version": "2.0.0",
+  "description": "QA Copilot — AI-Powered QA Assistant using Google Gemini (Free)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

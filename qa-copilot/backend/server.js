@@ -8,6 +8,11 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// ─── Gemini API Config ────────────────────────────────────────────────────────
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_MODEL   = 'gemini-1.5-flash';   // free-tier model, fast & capable
+const GEMINI_URL     = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+
 // ─── Middleware ───────────────────────────────────────────────────────────────
 app.use(cors({
   origin: process.env.FRONTEND_URL || '*',
@@ -17,21 +22,20 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Serve frontend static files (for production - serve both from one Render service)
+// Serve frontend static files (single Render service serves both)
 const frontendPath = path.join(__dirname, '../frontend');
 if (fs.existsSync(frontendPath)) {
   app.use(express.static(frontendPath));
 }
 
-// ─── File Upload (memory storage, no disk needed on free tier) ────────────────
+// ─── File Upload (memory storage — no disk needed on free Render tier) ────────
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = ['.pdf', '.txt', '.md', '.json', '.docx', '.csv'];
     const ext = path.extname(file.originalname).toLowerCase();
-    if (allowed.includes(ext)) cb(null, true);
-    else cb(new Error('File type not supported. Use PDF, TXT, MD, JSON, CSV, DOCX'));
+    allowed.includes(ext) ? cb(null, true) : cb(new Error('Unsupported file type'));
   }
 });
 
@@ -39,20 +43,20 @@ const upload = multer({
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
-    message: 'QA Copilot API is running',
-    version: '1.0.0',
+    message: 'QA Copilot API is running (Gemini Free Tier)',
+    version: '2.0.0',
+    model: GEMINI_MODEL,
     timestamp: new Date().toISOString(),
-    apiKeyConfigured: !!process.env.ANTHROPIC_API_KEY
+    apiKeyConfigured: !!GEMINI_API_KEY
   });
 });
 
 // ─── Main Generate Endpoint ──────────────────────────────────────────────────
 app.post('/api/generate', upload.array('files', 5), async (req, res) => {
   try {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
+    if (!GEMINI_API_KEY) {
       return res.status(500).json({
-        error: 'ANTHROPIC_API_KEY not configured on server. Add it in Render → Environment.'
+        error: 'GEMINI_API_KEY not configured. Add it in Render → Environment Variables.'
       });
     }
 
@@ -64,16 +68,20 @@ app.post('/api/generate', upload.array('files', 5), async (req, res) => {
         if (['.txt', '.md', '.json', '.csv'].includes(ext)) {
           const text = file.buffer.toString('utf-8').substring(0, 4000);
           fileTexts.push(`[File: ${file.originalname}]\n${text}`);
-        } else if (ext === '.pdf' || ext === '.docx') {
-          // For PDF/DOCX on free tier: extract as base64 hint
-          fileTexts.push(`[File: ${file.originalname} - ${(file.size/1024).toFixed(1)}KB uploaded, binary format]`);
+        } else {
+          fileTexts.push(`[File: ${file.originalname} uploaded — ${(file.size / 1024).toFixed(1)}KB]`);
         }
       }
     }
 
-    const { text = '', options = [], framework = 'selenium', testFormat = 'Gherkin (BDD)' } = req.body;
-    const parsedOptions = typeof options === 'string' ? JSON.parse(options) : options;
+    const {
+      text = '',
+      options = [],
+      framework = 'selenium',
+      testFormat = 'Gherkin (BDD)'
+    } = req.body;
 
+    const parsedOptions = typeof options === 'string' ? JSON.parse(options) : options;
     const combined = [text, ...fileTexts].filter(Boolean).join('\n\n---\n\n');
 
     if (!combined.trim()) {
@@ -82,35 +90,38 @@ app.post('/api/generate', upload.array('files', 5), async (req, res) => {
 
     const prompt = buildPrompt(combined, parsedOptions, framework, testFormat);
 
-    // Call Anthropic API
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    // ── Call Gemini API ──────────────────────────────────────────────────────
+    const geminiResponse = await fetch(GEMINI_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 4000,
-        messages: [{ role: 'user', content: prompt }]
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.4,
+          maxOutputTokens: 8192,
+          responseMimeType: 'application/json'   // forces Gemini to return pure JSON
+        }
       })
     });
 
-    if (!response.ok) {
-      const errData = await response.json();
-      return res.status(response.status).json({
-        error: errData.error?.message || 'Anthropic API error'
-      });
+    if (!geminiResponse.ok) {
+      const errData = await geminiResponse.json();
+      const msg = errData?.error?.message || 'Gemini API error';
+      return res.status(geminiResponse.status).json({ error: msg });
     }
 
-    const data = await response.json();
-    const rawText = data.content.map(c => c.text || '').join('');
+    const geminiData = await geminiResponse.json();
 
-    // Parse JSON from response
+    // Extract text from Gemini response
+    const rawText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    if (!rawText) {
+      return res.status(500).json({ error: 'Empty response from Gemini. Try again.' });
+    }
+
+    // Parse JSON (clean markdown fences if present)
     let cleaned = rawText.replace(/```json|```/g, '').trim();
     const start = cleaned.indexOf('{');
-    const end = cleaned.lastIndexOf('}');
+    const end   = cleaned.lastIndexOf('}');
     if (start > -1 && end > -1) cleaned = cleaned.substring(start, end + 1);
 
     const parsed = JSON.parse(cleaned);
@@ -119,6 +130,7 @@ app.post('/api/generate', upload.array('files', 5), async (req, res) => {
       success: true,
       data: parsed,
       meta: {
+        model: GEMINI_MODEL,
         inputLength: combined.length,
         framework,
         testFormat,
@@ -133,9 +145,7 @@ app.post('/api/generate', upload.array('files', 5), async (req, res) => {
   }
 });
 
-// ─── Export Endpoints ─────────────────────────────────────────────────────────
-
-// Export as CSV
+// ─── Export: CSV ─────────────────────────────────────────────────────────────
 app.post('/api/export/csv', (req, res) => {
   try {
     const { testcases = [] } = req.body;
@@ -148,7 +158,6 @@ app.post('/api/export/csv', (req, res) => {
     const csv = [headers, ...rows]
       .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
       .join('\n');
-
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename="test_cases.csv"');
     res.send(csv);
@@ -157,11 +166,11 @@ app.post('/api/export/csv', (req, res) => {
   }
 });
 
-// Export as Markdown
+// ─── Export: Markdown ─────────────────────────────────────────────────────────
 app.post('/api/export/markdown', (req, res) => {
   try {
     const { testcases = [], edge = [] } = req.body;
-    let md = '# QA Test Plan\n\nGenerated by QA Copilot\n\n---\n\n## Test Cases\n\n';
+    let md = '# QA Test Plan\n\nGenerated by QA Copilot (Gemini)\n\n---\n\n## Test Cases\n\n';
     testcases.forEach(tc => {
       md += `### ${tc.id}: ${tc.title}\n- **Priority**: ${tc.priority}\n- **Type**: ${tc.type}\n- **Module**: ${tc.module}\n\n**Steps:**\n${(tc.steps || []).map((s, i) => `${i + 1}. ${s}`).join('\n')}\n\n**Expected:** ${tc.expected}\n\n---\n\n`;
     });
@@ -177,7 +186,7 @@ app.post('/api/export/markdown', (req, res) => {
   }
 });
 
-// Export Postman Collection
+// ─── Export: Postman Collection ───────────────────────────────────────────────
 app.post('/api/export/postman', (req, res) => {
   try {
     const { api = [] } = req.body;
@@ -212,19 +221,19 @@ app.post('/api/export/postman', (req, res) => {
   }
 });
 
-// ─── Catch-all → serve frontend index.html ────────────────────────────────────
+// ─── Catch-all → serve frontend ───────────────────────────────────────────────
 app.get('*', (req, res) => {
   const indexPath = path.join(__dirname, '../frontend/index.html');
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);
   } else {
-    res.json({ message: 'QA Copilot API running. Frontend not found in /frontend folder.' });
+    res.json({ message: 'QA Copilot API running. Place index.html in /frontend folder.' });
   }
 });
 
-// ─── Prompt Builder ──────────────────────────────────────────────────────────
+// ─── Prompt Builder ───────────────────────────────────────────────────────────
 function buildPrompt(combined, options, framework, testFormat) {
-  return `You are a senior QA engineer. Analyze the following requirements and generate comprehensive QA assets.
+  return `You are a senior QA engineer. Analyze the requirements below and generate comprehensive QA assets.
 
 REQUIREMENTS:
 ${combined.substring(0, 6000)}
@@ -233,19 +242,19 @@ OPTIONS TO GENERATE: ${options.join(', ')}
 TEST FRAMEWORK: ${framework}
 TEST FORMAT: ${testFormat}
 
-Return a JSON object ONLY (no markdown, no preamble, no backticks) with this exact structure:
+Return ONLY a valid JSON object with NO explanation, NO markdown, NO backticks. Use this exact structure:
 {
   "testcases": [
     {
       "id": "TC001",
       "title": "Test case title",
       "module": "Module name",
-      "priority": "High|Medium|Low",
-      "type": "Functional|Regression|Smoke|E2E",
-      "preconditions": "Prerequisites",
+      "priority": "High",
+      "type": "Functional",
+      "preconditions": "User is logged in",
       "steps": ["Step 1", "Step 2", "Step 3"],
       "expected": "Expected result",
-      "tags": ["tag1", "tag2"]
+      "tags": ["smoke", "login"]
     }
   ],
   "testdata": [
@@ -253,37 +262,43 @@ Return a JSON object ONLY (no markdown, no preamble, no backticks) with this exa
       "scenario": "Scenario name",
       "valid": [{"field": "value"}],
       "invalid": [{"field": "value", "reason": "why invalid"}],
-      "boundary": [{"field": "value", "note": "boundary condition"}]
+      "boundary": [{"field": "value", "note": "boundary note"}]
     }
   ],
   "edge": [
     {
-      "category": "Boundary|Security|Performance|UX|Network|Data",
+      "category": "Security",
       "title": "Edge case title",
-      "description": "What to test",
-      "risk": "High|Medium|Low",
-      "mitigation": "How to handle"
+      "description": "What to test and how",
+      "risk": "High",
+      "mitigation": "How to handle this"
     }
   ],
   "api": [
     {
-      "method": "GET|POST|PUT|DELETE|PATCH",
-      "endpoint": "/api/endpoint",
-      "description": "What this tests",
+      "method": "POST",
+      "endpoint": "/api/login",
+      "description": "Test successful login",
       "headers": {"Content-Type": "application/json"},
-      "body": {},
-      "assertions": ["Status 200", "Response has id field"]
+      "body": {"username": "test@test.com", "password": "Test@123"},
+      "assertions": ["Status 200", "Response contains token"]
     }
   ],
-  "automation": "// Full ${framework} automation skeleton script with all test methods stubbed out and comments"
+  "automation": "// ${framework} automation skeleton\n// Add your full script here with all test stubs"
 }
 
-Generate 8-12 test cases, 3-4 test data scenarios, 6-8 edge cases, 4-6 API tests. Make them realistic and specific to the provided requirements.`;
+Rules:
+- Generate 8-12 testcases, 3-4 testdata, 6-8 edge cases, 4-6 api tests
+- priority must be exactly: High, Medium, or Low
+- risk must be exactly: High, Medium, or Low
+- method must be: GET, POST, PUT, DELETE, or PATCH
+- Make everything specific and realistic based on the actual requirements provided`;
 }
 
-// ─── Start Server ─────────────────────────────────────────────────────────────
+// ─── Start ────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
-  console.log(`✅ QA Copilot backend running on port ${PORT}`);
-  console.log(`   Health: http://localhost:${PORT}/api/health`);
-  console.log(`   API Key configured: ${!!process.env.ANTHROPIC_API_KEY}`);
+  console.log(`\n✅  QA Copilot backend running → http://localhost:${PORT}`);
+  console.log(`    Model  : ${GEMINI_MODEL} (Google Gemini Free Tier)`);
+  console.log(`    Health : http://localhost:${PORT}/api/health`);
+  console.log(`    API Key: ${GEMINI_API_KEY ? '✓ configured' : '✗ MISSING — set GEMINI_API_KEY in .env'}\n`);
 });
