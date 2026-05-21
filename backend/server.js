@@ -10,7 +10,7 @@ const PORT = process.env.PORT || 3001;
 
 // ─── Gemini API Config ────────────────────────────────────────────────────────
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL   = 'gemini-pro';   // free-tier model, fast & capable
+const GEMINI_MODEL   = 'gemini-pro-vision';   // try vision model for free-tier compatibility
 const GEMINI_URL     = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
