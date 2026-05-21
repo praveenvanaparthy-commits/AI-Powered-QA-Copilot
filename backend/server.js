@@ -296,9 +296,14 @@ Rules:
 }
 
 // ─── Start ────────────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`\n✅  QA Copilot backend running → http://localhost:${PORT}`);
-  console.log(`    Model  : ${GEMINI_MODEL} (Google Gemini Free Tier)`);
-  console.log(`    Health : http://localhost:${PORT}/api/health`);
-  console.log(`    API Key: ${GEMINI_API_KEY ? '✓ configured' : '✗ MISSING — set GEMINI_API_KEY in .env'}\n`);
-});
+try {
+  app.listen(PORT, () => {
+    console.log(`\n✅  QA Copilot backend running → http://localhost:${PORT}`);
+    console.log(`    Model  : ${GEMINI_MODEL} (Google Gemini Free Tier)`);
+    console.log(`    Health : http://localhost:${PORT}/api/health`);
+    console.log(`    API Key: ${GEMINI_API_KEY ? '✓ configured' : '✗ MISSING — set GEMINI_API_KEY in .env'}\n`);
+  });
+} catch (err) {
+  console.error('❌ Failed to start server:', err);
+  process.exit(1);
+}
