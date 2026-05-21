@@ -1,0 +1,14 @@
+{
+  "name": "qa-copilot",
+  "version": "2.0.0",
+  "description": "QA Copilot — AI-Powered QA Assistant using Google Gemini",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "node backend/server.js",
+    "dev": "cd backend && nodemon server.js",
+    "install-deps": "cd backend && npm install"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

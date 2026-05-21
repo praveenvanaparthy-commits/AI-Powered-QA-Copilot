@@ -2,11 +2,10 @@ services:
   - type: web
     name: qa-copilot
     env: node
-    rootDir: backend
-    buildCommand: npm install
-    startCommand: node server.js
+    buildCommand: cd backend && npm install
+    startCommand: node backend/server.js
     envVars:
-      - key: ANTHROPIC_API_KEY
+      - key: GEMINI_API_KEY
         sync: false
       - key: NODE_ENV
         value: production
